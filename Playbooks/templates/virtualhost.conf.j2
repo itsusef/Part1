@@ -1,0 +1,17 @@
+DirectoryIndex index.php index.html
+
+{% for vhost in apache_vhosts %}
+<VirtualHost *:80>
+    ServerName {{ vhost.servername }}
+    DocumentRoot {{ vhost.documentrootdir }}
+
+    <Directory {{ vhost.documentrootdir }}>
+
+    AllowOverride All
+    Options -Indexes +FollowSymLinks
+    Require all granted
+
+    </Directory>
+
+</VirtualHost>
+{% endfor %}

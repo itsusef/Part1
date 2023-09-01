@@ -1,0 +1,13 @@
+interface=eth1
+port=53
+domain-needed
+bogus-priv
+listen-address=127.0.0.1,192.168.50.50
+expand-hosts
+no-resolv
+server=1.1.1.1
+server=192.168.50.50
+domain=infra
+dhcp-range=192.168.50.100,192.168.50.150,255.255.255.0,24h
+dhcp-option=3,192.168.50.1
+dhcp-authoritative

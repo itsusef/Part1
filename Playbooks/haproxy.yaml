@@ -1,0 +1,42 @@
+---
+- name: Install HAProxy
+  hosts: dns
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+      become: yes
+
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+      become: yes
+
+    - name: Configure HAProxy
+      template:
+        src: templates/haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+      notify:
+        - restart HAProxy
+      become: yes
+      vars:
+        servers:
+          - servername: s1.infra
+            serverport: s1.infra:80
+          - servername: s2.infra
+            serverport: s2.infra:80 
+            
+    - name: Restart Haproxy
+      service:
+        name: haproxy
+        state: restarted
+
+
+  handlers:
+    - name: restart HAProxy
+      service:
+        name: haproxy
+        state: restarted

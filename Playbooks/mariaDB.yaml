@@ -1,0 +1,140 @@
+---
+- name: Install MariaDB
+  hosts: s3.infra
+  gather_facts: true
+  vars:
+    mysql_root_password: "Password"
+    mysql_socket: "/var/run/mysqld/mysqld.sock"
+    host: "192.168.50.%"
+
+  tasks:
+    - name: Install packages
+      apt:
+        name:
+          - mariadb-common
+          - mariadb-server
+          - python3-pymysql
+        state: present
+      become: yes
+      
+
+    - name: Start MariaDB
+      service:
+        name: mariadb
+        enabled: true
+        state: started
+      become: yes
+
+        #    - name: Check if root password is unset
+        #      shell: >
+        #        mysql -u root
+        #        -p"{{ mysql_root_password }}"
+        #        -h localhost
+        #        -e "quit"
+        #      changed_when: false
+        #      ignore_errors: true
+        #      register: root_pwd_check
+
+
+    - name: Set a password for the MariaDB root account
+      become: yes
+      mysql_user:
+        name: root
+        login_unix_socket: "{{ mysql_socket }}"
+        check_implicit_admin: yes
+        password: "{{ mysql_root_password }}"
+        priv: "*.*:ALL,GRANT"
+        state: present
+        host: localhost
+      no_log: false
+        #      when: root_pwd_check.rc != 0
+
+
+    - name: Edit bind Addresse
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        search_string: 'bind-address'
+        line: bind-address = {{ ansible_eth1.ipv4.address }}
+      become: yes
+      notify:
+        - restart mariadb
+
+    - name: Check if a file exist
+      become: yes
+      stat:
+        path: "/root/.my.cnf"
+      register: directory_exist
+
+    - name: Create .my.cnf
+      become: yes
+      template:
+        src: templates/.my.cnf.j2
+        dest: /root/.my.cnf
+      when: not directory_exist.stat.exists
+
+
+    - name: Set The remote access option 
+      become: yes
+      mysql_user:
+        name: root
+        login_unix_socket: "{{ mysql_socket }}"
+        password: "{{ mysql_root_password }}"
+        priv: "*.*:ALL,GRANT"
+        state: present
+        host: 192.168.50.%
+
+
+    - name: restart mariadb
+      become: yes
+      service:
+        name: mariadb
+        state: restarted
+    
+    - name: Creates database for WordPress
+      become: yes
+      mysql_db:
+        name: "{{ item.name }}"
+        state: present
+        login_host: "{{ ansible_ssh_host }}"
+          #login_user: root
+          #login_password: "{{ mysql_root_password }}"
+        login_unix_socket: "{{ mysql_socket }}"
+      with_items:
+        - name: devopsdb
+        - name: devsecdb
+        - name: devsecopsdb
+
+    - name: Create wordpress user
+      become: yes
+      mysql_user:
+        name: "{{ item.name }}"
+        password: "{{ item.password }}"
+        login_unix_socket: "{{ mysql_socket }}"
+        priv: '{{ item.db }}.*:ALL,GRANT'
+        append_privs: true
+        host: "{{ host }}"
+        state: present
+      with_items:
+        - name: devops
+          password: devopsRoot2023
+          db: "devopsdb"
+        - name: devsec
+          password: devsecRoot2023
+          db: "devsecdb"
+        - name: devsecops
+          password: devsecopsRoot2023
+          db: "devsecopsdb"
+      notify: restart mariadb
+
+       #    - name: restart mariadb
+       #      become: yes
+       #      service:
+       #        name: mariadb
+       #        state: restarted
+
+  handlers:
+    - name: restart mariadb
+      become: yes
+      service:
+        name: mariadb
+        state: restarted

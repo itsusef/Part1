@@ -1,0 +1,48 @@
+---
+- name: Mount NFS share on clients
+  hosts: app_server
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Install NFS client package
+      apt:
+        name: nfs-common
+        state: present
+
+    - name: Check if a directory exist
+      stat:
+        path: "/mnt/data/"
+      register: directory_exist
+
+    - name: Create mount directory
+      file:
+        path: /mnt/data
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0775'
+      when: not directory_exist.stat.exists
+
+
+    - name: Mount /var/www/ on /mnt/nfs
+      mount:
+        path: /mnt/nfs
+        src: /var/www/
+        opts: bind
+        fstype: none
+        state: mounted
+
+    - name: Mount /mnt/nfs on nfs:/data
+      mount:
+        path: /mnt/nfs
+        src: s4.infra:/home/data
+        fstype: nfs
+        state: mounted
+      when: not directory_exist.stat.exists
+
+
+    - name: Report directory not exist
+      debug:
+        msg: "The directory exist"
+      when: directory_exist.stat.exists and directory_exist.stat.isdir

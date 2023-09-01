@@ -1,0 +1,200 @@
+# PLAYBOOK 1
+- hosts: app_server
+  become: yes
+  tasks:
+    - name: Create directory
+      file:
+        path: "/var/www/{{ item }}"
+        state: directory
+      with_items:
+        - devops
+        - devsec
+        - devsecops
+
+    - name: Install apache2
+      apt:
+        name: apache2
+        state: present
+
+    - name: Enable mode rewrite
+      apache2_module:
+        name: rewrite
+        state: present
+      notify:
+        - restart apache2
+
+    - name: Create Vhosts
+      vars:
+        apache_vhosts:
+          - servername: devops.com
+            documentrootdir: /var/www/devops
+          - servername: devsec.com
+            documentrootdir: /var/www/devsec
+          - servername: devsecops.com
+            documentrootdir: /var/www/devsecops
+      template:
+        src: templates/virtualhost.conf.j2
+        dest: /etc/apache2/sites-available/vhosts.conf
+        owner: root
+        group: root
+        mode: 0644
+      notify:
+        - restart apache2
+
+    - name:  Disable Default Conf file
+      shell: /usr/sbin/a2dissite 000-default.conf
+      notify:
+        - restart apache2
+
+    - name: Enable new sites
+      shell: /usr/sbin/a2ensite vhosts.conf
+      notify:
+        - restart apache2
+
+    - name: Install PHP
+      import_role:
+        name: geerlingguy.php
+      vars:
+        php_packages:
+          - php
+          - php-cli
+          - php-apcu
+          - php-mysql
+        php_default_version_debian: "8.2"
+
+    - name: Install mariadb packages
+      apt:
+        name:
+          - mariadb-common
+          - mariadb-server
+          - python3-pymysql
+        state: present
+      become: yes
+
+    - name: Start MariaDB
+      service:
+        name: mariadb
+        enabled: true
+        state: started
+      become: yes
+
+  handlers:
+    - name: restart apache2
+      service:
+        name: apache2
+        state: restarted
+
+
+# PLAYBOOK2 Install NFS Client 
+- hosts: app_server
+  become: yes
+  tasks:
+    - name: Install NFS Client package
+      apt:
+        name: nfs-common
+        state: present
+
+    - name: Check if a directory exist
+      stat:
+        path: "/mnt/nfs/"
+      register: directory_exist
+
+    - name: Create Mount Directory 
+      file:
+        path: /mnt/nfs/
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+      when: not directory_exist.stat.exists
+
+
+    - name: Mount /mnt/nfs on nfs:/data
+      mount:
+        path: "{{ item }}"
+        src: s4.infra:/home/data
+        fstype: nfs
+        state: mounted
+      when: not directory_exist.stat.exists
+      with_items:
+        - /mnt/nfs
+        - /var/www
+
+    - name: Report Directory /mnt/nfs exist
+      debug: 
+        msg: "The directory Already Exist"
+      when: directory_exist.stat.exists and directory_exist.stat.isdir
+
+
+
+
+# PLAYBOOK 3
+- hosts: app_server
+  serial: 1
+  become: yes
+  tasks:
+    - name: Install Wordpress
+      import_role:
+        name: oefenweb.wordpress
+      vars:
+        wordpress_installs:
+          - name: devops
+            dbname: devopsdb
+            dbuser: devops
+            dbpass: "devopsRoot2023"
+            dbhost: s3.infra
+            path: "/var/www/devops"
+            title: devops
+            admin_name: admin
+            admin_email: "admin@admin.adm"
+            admin_password: wordpressadminpwd123
+            url: http://devops.com
+            themes:
+              - name: twentyseventeen
+                activate: true
+            plugins: []
+            users: {}
+            options: []
+            queries: []
+          - name: devsec
+            dbname: devsecdb
+            dbuser: devsec
+            dbpass: "devsecRoot2023"
+            dbhost: s3.infra
+            path: "/var/www/devsec"
+            title: devsec
+            admin_name: admin
+            admin_email: "admin@admin.adm"
+            admin_password: wordpressadminpwd123
+            url: http://devsec.com
+            themes:
+              - name: twentythirteen
+                activate: true
+            plugins: []
+            users: {}
+            options: []
+            queries: []
+          - name: devsecops
+            dbname: devsecopsdb
+            dbuser: devsecops
+            dbpass: "devsecopsRoot2023"
+            dbhost: s3.infra
+            path: "/var/www/devsecops"
+            title: devsecops
+            admin_name: admin
+            admin_email: "admin@admin.adm"
+            admin_password: wordpressadminpwd123
+            url: http://devsecops.com
+            themes:
+              - name: twentytwentyone
+              #              - name: twentyfourteen
+                activate: true
+            plugins: []
+            users: {}
+            options: []
+            queries: []
+
+    - name: restart apache2
+      service:
+        name: apache2
+        state: restarted

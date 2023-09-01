@@ -1,0 +1,26 @@
+---
+- name: Install and configure NFS server
+  hosts: s4.infra
+  become: yes
+
+  tasks:
+    - name: Install NFS server package
+      package:
+        name: nfs-kernel-server
+        state: present
+
+    - name: Create NFS export directory
+      file:
+        path: /home/data
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0775'
+
+    - name: Configure NFS exports
+      lineinfile:
+        path: /etc/exports
+        line: "/home/data *(rw,sync,no_root_squash,no_subtree_check)"
+
+    - name: NFS Apply changes
+      shell: systemctl reload nfs;exportfs -a

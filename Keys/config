@@ -1,5 +1,0 @@
-Host *
-User root
-IdentityFile ~/.ssh/controller@vm
-StrictHostKeyChecking no
-UserKnownHostsFile=/dev/null
